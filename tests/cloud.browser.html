@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><title>Spendwell cloud integration test</title>
+  <h1>Spendwell cloud integration test</h1>
+  <pre id="status">Running…</pre>
+  <script type="module">
+    // Serve the repository root and visit /tests/cloud.browser.html in a current browser.
+    // Google is simulated. IndexedDB, compression, Web Locks and the ledger implementation are real.
+    const realDB = window.indexedDB;
+    const prefix = "spendwell-test-" + crypto.randomUUID() + ":";
+    const stores = new Set();
+    let browserProfile = 0;
+    Object.defineProperty(window, "indexedDB", {
+      configurable: true,
+      value: {
+        open(name, version) {
+          const scoped = prefix + browserProfile + ":" + name;
+          stores.add(scoped);
+          return realDB.open(scoped, version);
+        },
+      },
+    });
+    const assert = {
+      equal(a, b) {
+        if (a !== b) throw new Error("Expected " + b + "; got " + a);
+      },
+      deepEqual(a, b) {
+        this.equal(JSON.stringify(a), JSON.stringify(b));
+      },
+      async rejects(p, re) {
+        try {
+          await p;
+        } catch (e) {
+          if (re.test(e.message)) return;
+          throw e;
+        }
+        throw new Error("Expected rejection " + re);
+      },
+      throws(f, re) {
+        try {
+          f();
+        } catch (e) {
+          if (re.test(e.message)) return;
+          throw e;
+        }
+        throw new Error("Expected error " + re);
+      },
+    };
+    const sheets = new Map();
+    let n = 0,
+      picked,
+      who,
+      failAfterUpload = false,
+      denied = false;
+    const ok = (v, status = 200) => Response.json(v, { status });
+    globalThis.google = {
+      accounts: {
+        oauth2: {
+          hasGrantedAllScopes: () => true,
+          initTokenClient: (opts) => ({
+            requestAccessToken: () =>
+              opts.callback({ access_token: who, expires_in: 3600 }),
+          }),
+        },
+      },
+      picker: {
+        DocsView: class {
+          setOwnedByMe() {}
+        },
+        ViewId: { SPREADSHEETS: 1 },
+        Action: { PICKED: 1, CANCEL: 2 },
+        PickerBuilder: class {
+          setAppId() {
+            return this;
+          }
+          setDeveloperKey() {
+            return this;
+          }
+          setOAuthToken() {
+            return this;
+          }
+          setOrigin() {
+            return this;
+          }
+          setTitle() {
+            return this;
+          }
+          addView() {
+            return this;
+          }
+          setCallback(cb) {
+            this.cb = cb;
+            return this;
+          }
+          build() {
+            return this;
+          }
+          dispose() {}
+          setVisible() {
+            this.cb({ action: 1, docs: [{ id: picked }] });
+          }
+        },
+      },
+    };
+    globalThis.gapi = { load: (k, o) => o.callback() };
+    globalThis.fetch = async (resource, opts = {}) => {
+      const url = new URL(resource),
+        p = decodeURIComponent(url.pathname);
+      const user = opts.headers.Authorization.slice(7);
+      const fileJSON = (file) => ({
+        id: file.id,
+        name: file.name,
+        appProperties: file.appProperties,
+        owners: [{ me: file.owner === user }],
+        capabilities: { canEdit: file.users.includes(user) },
+      });
+      if (p === "/v1/userinfo")
+        return ok({ sub: user, name: user, email: user + "@example.com" });
+      if (p === "/drive/v3/files" && opts.method === "POST") {
+        const body = JSON.parse(opts.body),
+          id = "household-" + ++n;
+        sheets.set(id, {
+          ...body,
+          id,
+          owner: user,
+          users: [user],
+          tab: "Sheet1",
+          rows: [],
+        });
+        return ok({ id });
+      }
+      if (p === "/drive/v3/files")
+        return ok({
+          files: [...sheets.values()]
+            .filter((f) => f.users.includes(user))
+            .map(fileJSON),
+        });
+      if (p.includes("/drive/v3/files/")) {
+        const file = sheets.get(p.split("/")[4]);
+        if (!file?.users.includes(user))
+          return ok({ error: { message: "Access revoked" } }, 403);
+        if (p.endsWith("/permissions") && opts.method === "POST") {
+          const email = JSON.parse(opts.body).emailAddress;
+          file.users.push(email.split("@")[0]);
+          return ok({ id: email });
+        }
+        if (p.endsWith("/permissions"))
+          return ok({
+            permissions: file.users.map((id) => ({
+              type: "user",
+              displayName: id,
+              emailAddress: id + "@example.com",
+              role: id === file.owner ? "owner" : "writer",
+            })),
+          });
+        return ok(fileJSON(file));
+      }
+      if (p.includes("/v4/spreadsheets/")) {
+        const [, , , id, , range] = p.split("/");
+        const sheet = sheets.get(id.replace(":batchUpdate", ""));
+        if (!sheet?.users.includes(user) || denied)
+          return ok({ error: { message: "Access revoked" } }, 403);
+        if (id.endsWith(":batchUpdate")) {
+          const optsJSON = JSON.parse(opts.body);
+          sheet.tab = "Ledger";
+          sheet.rows = [
+            optsJSON.requests[1].updateCells.rows[0].values.map(
+              (v) => v.userEnteredValue.stringValue,
+            ),
+          ];
+          return ok({});
+        }
+        if (!range)
+          return ok({
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: sheet.tab,
+                  gridProperties: {
+                    rowCount: Math.max(1000, sheet.rows.length),
+                  },
+                },
+              },
+            ],
+          });
+        if (range.endsWith(":append")) {
+          const rows = JSON.parse(opts.body).values,
+            start = sheet.rows.length + 1;
+          sheet.rows.push(...rows);
+          if (failAfterUpload) {
+            failAfterUpload = false;
+            throw new TypeError("network interrupted");
+          }
+          return ok({
+            updates: {
+              updatedRange:
+                "Ledger!A" + start + ":D" + (start + rows.length - 1),
+            },
+          });
+        }
+        const [, start, end] = range.match(/A(\d+):[BD](\d+)/);
+        return ok({ values: sheet.rows.slice(Number(start) - 1, Number(end)) });
+      }
+      throw new Error("Unexpected: " + p);
+    };
+    async function device(user, count) {
+      who = user;
+      browserProfile = count;
+      const api = await import("../dist/cloud.js?test-device=" + count);
+      await api.signInGoogle("mock");
+      const ledger = await api.openLedger(user);
+      return { ledger, api };
+    }
+    async function run() {
+      const a = await device("alice", 1);
+      const first = await a.ledger.createHousehold("Our household", "INR");
+      const other = await a.ledger.createHousehold("Other", "USD");
+      assert.equal((await a.ledger.listHouseholds()).length, 2);
+      const initial = Array.from({ length: 410 }, (_, index) => ({
+        kind: "tx",
+        key: "t" + index,
+        value: { category: "groceries", amount: 2 * index, title: "test ✓" },
+      }));
+      initial.push({
+        kind: "budget",
+        key: "monthly",
+        value: { amount: 20000 },
+      });
+      await a.ledger.putMany(initial, first);
+      await a.ledger.put("tx", "isolated", { amount: 33 }, other);
+      assert.equal(await a.ledger.pending(first), 411);
+      failAfterUpload = true;
+      await assert.rejects(a.ledger.sync(first), /network interrupted/);
+      assert.equal(await a.ledger.pending(first), 411);
+      await a.ledger.sync(first);
+      assert.equal(await a.ledger.pending(first), 0);
+      assert.equal(await a.ledger.pending(other), 1);
+      assert.equal(sheets.get(first).rows.length, 5);
+      const second = await device("alice", 2);
+      assert.equal((await second.ledger.listHouseholds()).length, 2);
+      await second.ledger.sync(first);
+      assert.equal((await second.ledger.all(first)).length, 411);
+      const b = await device("bob", 3);
+      assert.equal((await b.ledger.listHouseholds()).length, 0);
+      await a.ledger.invite(first, "bob@example.com");
+      assert.equal((await a.ledger.members(first)).length, 2);
+      picked = first;
+      const joined = await b.ledger.joinGroup({
+        apiKey: "fake",
+        appId: "fake",
+      });
+      assert.deepEqual(joined, {
+        id: first,
+        name: "Our household",
+        currency: "INR",
+        ownerId: "alice",
+        role: "editor",
+      });
+      assert.equal((await b.ledger.all(first)).length, 411);
+      await assert.rejects(
+        b.ledger.invite(first, "clara@example.com"),
+        /owner/,
+      );
+      await b.ledger.put("tx", "new", { amount: 300 }, first);
+      await b.ledger.sync(first);
+      await a.ledger.sync(first);
+      assert.equal(
+        (await a.ledger.all(first)).find((e) => e.key === "new").value.amount,
+        300,
+      );
+      await a.ledger.put("tx", "new", null, first);
+      await a.ledger.sync(first);
+      await b.ledger.sync(first);
+      assert.equal(
+        (await b.ledger.all(first)).find((e) => e.key === "new").value,
+        null,
+      );
+      await b.ledger.put("tx", "queue", { amount: 100 }, first);
+      denied = true;
+      await assert.rejects(b.ledger.sync(first), /Access revoked/);
+      assert.equal(await b.ledger.pending(first), 1);
+      denied = false;
+      await b.ledger.sync(first);
+      await a.ledger.sync(first);
+      assert.equal(
+        (await a.ledger.all(first)).find((e) => e.key === "queue").value.amount,
+        100,
+      );
+      assert.equal(sheets.size, 2);
+      // Competing changes to one record and independent writes converge after both users refresh.
+      await Promise.all([
+        a.ledger.putMany(
+          [
+            { kind: "tx", key: "race", value: { amount: 12 } },
+            { kind: "tx", key: "left", value: { amount: 1 } },
+          ],
+          first,
+        ),
+        b.ledger.putMany(
+          [
+            { kind: "tx", key: "race", value: { amount: 20 } },
+            { kind: "tx", key: "right", value: { amount: 2 } },
+          ],
+          first,
+        ),
+      ]);
+      await Promise.all([a.ledger.sync(first), b.ledger.sync(first)]);
+      await Promise.all([a.ledger.sync(first), b.ledger.sync(first)]);
+      const aliceRows = await a.ledger.all(first),
+        bobRows = await b.ledger.all(first);
+      assert.equal(
+        aliceRows.find((e) => e.key === "race").id,
+        bobRows.find((e) => e.key === "race").id,
+      );
+      assert.equal(aliceRows.find((e) => e.key === "right").value.amount, 2);
+      assert.equal(bobRows.find((e) => e.key === "left").value.amount, 1);
+
+      // An interrupted local edit cannot leave half a transaction, and a large record spans cells.
+      await assert.rejects(
+        a.ledger.putMany(
+          [
+            { kind: "tx", key: "atomic", value: { amount: 100 } },
+            { kind: "tx", key: "bad" },
+          ],
+          first,
+        ),
+        /unreadable event/,
+      );
+      assert.equal(
+        (await a.ledger.all(first)).some((e) => e.key === "atomic"),
+        false,
+      );
+      let large = "";
+      for (let i = 0; i < 12; i++) {
+        const block = crypto.getRandomValues(new Uint8Array(8192));
+        large += btoa(String.fromCharCode(...block));
+      }
+      large += "\u2028👨‍👩‍👧";
+      await b.ledger.put("tx", "attachment", { data: large }, first);
+      await b.ledger.sync(first);
+      await a.ledger.sync(first);
+      assert.equal(
+        (await a.ledger.all(first)).find((e) => e.key === "attachment").value
+          .data,
+        large,
+      );
+      const demo = await b.api.openLedger("local");
+      await demo.put("tx", "sample", { amount: 100 }, "demo");
+      assert.equal(await demo.pending("demo"), 0);
+      assert.equal((await demo.all("demo")).length, 1);
+      await assert.rejects(
+        demo.createHousehold("Real household", "USD"),
+        /Reconnect/,
+      );
+      b.api.signOutGoogle();
+      assert.throws(() => b.ledger.sync(first), /Reconnect/);
+    }
+    try {
+      await run();
+      document.getElementById("status").textContent =
+        "PASS — account and household isolation, 411 edits, compressed batches, interrupted upload recovery, cross-device discovery, invitations, member edits, deletions and permission failures.";
+    } catch (error) {
+      document.getElementById("status").textContent = "FAILED — " + error.stack;
+      throw error;
+    } finally {
+      for (const name of stores) realDB.deleteDatabase(name);
+    }
+  </script>
+</html>

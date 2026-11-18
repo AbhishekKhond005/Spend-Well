@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Connect Google Drive · Spendwell</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="main" style="max-width: 780px">
+      <a class="linkbtn" href="./">← Back to Spendwell</a>
+      <h1>Connect Google Drive</h1>
+      <article class="panel settings-panel">
+        <h2>One-time setup for the site owner</h2>
+        <ol class="guide">
+          <li>
+            In Google Cloud, create a project and enable Google Drive API,
+            Google Sheets API, and Google Picker API.
+            <a href="https://console.cloud.google.com/apis/library"
+              >Google API Library</a
+            >
+          </li>
+          <li>
+            Configure Google Auth Platform with an app name, audience, support
+            email and the scopes openid, email, profile, and
+            https://www.googleapis.com/auth/drive.file. Add your household’s
+            accounts as test users while the app is in testing.
+          </li>
+          <li>
+            Create a Web application OAuth client. Set the authorized JavaScript
+            origin to your site origin, such as https://YOUR-NAME.github.io or
+            http://localhost:8000. Keep the repository path out of the origin.
+          </li>
+          <li>
+            Create a browser API key restricted to Google Picker API and your
+            site’s HTTP referrers. Copy the numeric Google Cloud project number.
+          </li>
+          <li>
+            In your GitHub repository, open Settings → Secrets and variables →
+            Actions → Variables. Set <code>GOOGLE_CLIENT_ID</code>,
+            <code>GOOGLE_API_KEY</code> and <code>GOOGLE_APP_ID</code> (the
+            project number). Rerun the Pages workflow. For local development,
+            enter the same public values in <code>dist/config.js</code>.
+          </li>
+        </ol>
+      </article>
+      <article class="panel settings-panel">
+        <h2>Create and share your household</h2>
+        <p class="info">
+          Connect your Google account, choose Create household, and select a
+          currency. Your Drive will own the household sheet. Invite your partner
+          from Members. They can sign in on their phone and choose Join shared
+          household to select your ledger.
+        </p>
+      </article>
+    </main>
+  </body>
+</html>
