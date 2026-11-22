@@ -14,11 +14,12 @@ import {
   isoDay,
   monthOf,
   shiftMonth,
-  demoData,
   monthDays,
 } from "./finance.js";
 import {
   shell,
+  welcome,
+  householdSetup,
   esc,
   button,
   monthName,
@@ -43,10 +44,6 @@ const remember = (key, v) =>
   localStorage.setItem(prefix + key, JSON.stringify(v));
 const currentMonth = () => monthOf(new Date());
 const cleanFilters = () => ({ q: "", cat: "", type: "", member: "" });
-const demoPeople = [
-  { name: "Alex Sharma", email: "Demo member", role: "owner" },
-  { name: "Maya Sharma", email: "Demo member", role: "editor" },
-];
 const s = {
   page: "overview",
   month: currentMonth(),
@@ -92,8 +89,12 @@ function render() {
     document.activeElement?.id === "search" ? document.activeElement : null;
   const caret = activeSearch?.selectionStart;
   s.connected = !!getGoogleSession();
-  root.innerHTML = shell(s);
-  if (mobileMenu) {
+  root.innerHTML = !s.profile
+    ? welcome()
+    : !s.home
+      ? householdSetup(s)
+      : shell(s);
+  if (mobileMenu && s.home) {
     root.querySelector(".sidebar").classList.add("show");
     root.querySelector(".screen-cover").classList.add("open");
   }
@@ -205,11 +206,11 @@ async function openHome(home) {
   s.busySync = false;
   s.syncError = "";
   s.peopleError = "";
-  s.people = s.profile ? [] : demoPeople;
+  s.people = [];
   s.pg = 0;
   s.filters = cleanFilters();
   if (home) {
-    remember("home:" + (s.profile?.id || "local"), home.id);
+    remember("home:" + s.profile.id, home.id);
     await readHead();
   } else render();
   if (s.page === "members") fetchMembers();
@@ -223,7 +224,12 @@ async function loadAccount(profile) {
   s.rows = [];
   s.budgets = [];
   s.people = [];
-  const ledger = await openLedger(profile?.id || "local");
+  s.ledger = null;
+  if (!profile) {
+    await openHome(null);
+    return;
+  }
+  const ledger = await openLedger(profile.id);
   if (stamp !== scope) return;
   s.ledger = ledger;
   let homes;
@@ -237,15 +243,8 @@ async function loadAccount(profile) {
   }
   if (stamp !== scope) return;
   s.homes = homes;
-  if (!profile) {
-    s.homes = [{ ...homes[0], name: "Sharma home" }];
-    if (!(await ledger.all("demo")).length)
-      await ledger.putMany(demoData(), "demo");
-  }
   await openHome(
-    s.homes.find(
-      (h) => h.id === read("home:" + (profile?.id || "local"), ""),
-    ) ||
+    s.homes.find((h) => h.id === read("home:" + profile.id, "")) ||
       s.homes[0] ||
       null,
   );
@@ -254,7 +253,7 @@ async function save(changes) {
   if (!s.home || !s.ledger) throw Error("Choose a household first.");
   const ticket = scope,
     home = s.home.id,
-    account = s.profile?.id || "local";
+    account = s.profile.id;
   const written = await s.ledger.putMany(changes, home);
   if (scope !== ticket) return;
   for (const event of written) {
@@ -379,8 +378,7 @@ async function connect(after) {
   if (after === "create") createForm();
   else if (after === "join") await joinHome();
   else if (after === "invite" && s.home) inviteForm();
-  else if (!s.home) showHomes();
-  else notify("Connected to Google Drive.");
+  else if (s.home) notify("Connected to Google Drive.");
 }
 function requireGoogle(next) {
   if (getGoogleSession() && s.profile) return true;
@@ -398,7 +396,7 @@ function createForm() {
       form(
         field(
           "Household name",
-          '<input name="name" maxlength="80" required placeholder="e.g. Sharma household">',
+          '<input name="name" maxlength="80" required placeholder="e.g. Our household">',
           true,
         ) +
           field(
@@ -570,7 +568,7 @@ function txForm(tx = null, copy = false) {
           2,
           "0",
         );
-  const self = s.profile || { id: "Alex", name: "Alex Sharma" };
+  const self = s.profile;
   draft = tx
     ? {
         ...tx,
@@ -954,10 +952,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 channel?.addEventListener("message", (e) => {
-  if (
-    e.data.home === s.home?.id &&
-    e.data.account === (s.profile?.id || "local")
-  )
+  if (e.data.home === s.home?.id && e.data.account === s.profile?.id)
     readHead().catch(showError);
 });
 setInterval(() => {

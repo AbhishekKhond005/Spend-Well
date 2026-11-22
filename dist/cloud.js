@@ -386,13 +386,6 @@ async function grantAccess(account, sheet, email) {
   );
 }
 
-const demo = {
-  id: "demo",
-  name: "Sample household",
-  currency: "INR",
-  ownerId: "local",
-  role: "owner",
-};
 const getHome = (db, id) =>
   run(db, ["homes"], "readonly", (s) => result(s.homes.get(id)));
 const readMeta = (db, key) =>
@@ -414,7 +407,6 @@ async function remember(db, home) {
   return home;
 }
 async function listHomes(db, account) {
-  if (account === "local") return [demo];
   // Read from the account cache offline. On first use the directory comes from per-file Drive grants.
   if (session?.profile.id === account && navigator.onLine !== false) {
     try {
@@ -543,18 +535,15 @@ async function initializeSheet(account, home) {
   );
 }
 
-async function writeEvents(db, account, homeId, changes) {
+async function writeEvents(db, homeId, changes) {
   if (!Array.isArray(changes))
     throw new Error("Supply a list of household changes.");
-  if (account === "local" && homeId !== demo.id)
-    throw new Error("Connect Google to create a household.");
   return run(
     db,
     ["homes", "heads", "outbox", "meta"],
     "readwrite",
     async (s) => {
-      const home =
-        account === "local" ? demo : await result(s.homes.get(homeId));
+      const home = await result(s.homes.get(homeId));
       if (!home) throw new Error("Open or create this household first.");
       if (home.role === "viewer")
         throw new Error("Request editor access from the household owner.");
@@ -571,7 +560,7 @@ async function writeEvents(db, account, homeId, changes) {
           household: homeId,
         };
         s.heads.put(stored);
-        if (account !== "local") s.outbox.add(stored);
+        s.outbox.add(stored);
         added.push(stored);
       }
       s.meta.put(clock, "clock:" + homeId);
@@ -715,8 +704,9 @@ async function push(db, account, home) {
   }
 }
 
-export async function openLedger(account = "local") {
-  if (!validString(account)) throw new Error("Missing ledger account.");
+export async function openLedger(account) {
+  if (!validString(account) || account === "local")
+    throw new Error("Sign in with Google to open a ledger.");
   const db = await database(account);
   return {
     createHousehold: (name, currency) =>
@@ -729,9 +719,8 @@ export async function openLedger(account = "local") {
       );
     },
     put: async (kind, key, value, household) =>
-      (await writeEvents(db, account, household, [{ kind, key, value }]))[0],
-    putMany: (changes, household) =>
-      writeEvents(db, account, household, changes),
+      (await writeEvents(db, household, [{ kind, key, value }]))[0],
+    putMany: (changes, household) => writeEvents(db, household, changes),
     pending: (household) => {
       if (!validString(household)) throw new Error("Choose a household.");
       return run(db, ["outbox"], "readonly", (s) =>
@@ -739,8 +728,6 @@ export async function openLedger(account = "local") {
       );
     },
     members: async (id) => {
-      if (account === "local" && id === demo.id)
-        return [{ name: "You", email: "", role: "owner" }];
       const people = [];
       let page = "";
       do {

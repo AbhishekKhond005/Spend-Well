@@ -36,7 +36,7 @@ function initials(name) {
     .toUpperCase();
 }
 function avatar(name, big = false) {
-  return `<span class="avatar ${name === "Maya Sharma" || name.charCodeAt(0) % 3 === 0 ? "peach" : ""} ${big ? "big" : ""}">${esc(initials(name))}</span>`;
+  return `<span class="avatar ${name.charCodeAt(0) % 3 === 0 ? "peach" : ""} ${big ? "big" : ""}">${esc(initials(name))}</span>`;
 }
 function moneyFormat(currency) {
   const factor = Number(fromMinor(1, currency));
@@ -67,11 +67,44 @@ function monthName(month, short = false) {
 function navLink(page, current) {
   return `<button data-page="${page}" class="${current === page ? "active" : ""}" ${current === page ? 'aria-current="page"' : ""}>${icon(navIcons[page])}<span>${names[page]}</span></button>`;
 }
+export function welcome() {
+  return `<main id="main" class="entry">
+    <section class="entry-copy">
+      <div class="entry-brand"><img src="./assets/mark.svg" alt="" width="38" height="38">Spendwell</div>
+      <h1>Household finances, together.</h1>
+      <p>Track spending, set monthly budgets, and share a household ledger with the people you live with.</p>
+      <button type="button" class="btn google-login" data-act="connect">${googleMark}Sign in with Google</button>
+      <p class="entry-hint">Your ledger is stored in the household owner’s Google Drive. Use your invited Google account to join an existing household.</p>
+      <a href="./privacy.html">Privacy policy</a>
+    </section>
+    <div class="entry-art" aria-hidden="true"><img src="./assets/money.svg" alt=""></div>
+  </main>`;
+}
+
+const googleMark =
+  '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285f4" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5h6.6c3.9-3.6 6.1-8.8 6.1-14.9z"/><path fill="#34a853" d="M24 44c5.5 0 10.2-1.8 13.5-4.6l-6.6-5a12.3 12.3 0 0 1-18.3-6.5H5.8V33A20 20 0 0 0 24 44z"/><path fill="#fbbc05" d="M12.6 27.9a12 12 0 0 1 0-7.8V15H5.8a20 20 0 0 0 0 18z"/><path fill="#ea4335" d="M24 11.9c3 0 5.6 1 7.6 3l5.7-5.7A19.3 19.3 0 0 0 24 4 20 20 0 0 0 5.8 15l6.8 5.1A12 12 0 0 1 24 12z"/></svg>';
+
+export function householdSetup(s) {
+  return `<main id="main" class="entry">
+    <section class="entry-copy">
+      <div class="entry-brand"><img src="./assets/mark.svg" alt="" width="38" height="38">Spendwell</div>
+      <h1>Set up your household</h1>
+      <p>Start a ledger in your Google Drive or open a household that’s already shared with you.</p>
+      <div class="entry-options">
+        <div>${button("Create household", "create", "plus", "btn primary")}<p>Choose a name and currency. Invite others once your ledger is ready.</p></div>
+        <div>${button("Join shared household", "join", "people")}<p>Open the shared ledger from Google Drive using your invited account.</p></div>
+      </div>
+      <p class="entry-hint">${esc(s.profile.email)}</p>
+      ${button(s.connected ? "Switch Google account" : "Reconnect Google", "connect", "", "linkbtn")}
+      ${button("Sign out", "signout", "", "linkbtn")}
+    </section>
+    <div class="entry-art" aria-hidden="true"><img src="./assets/money.svg" alt=""></div>
+  </main>`;
+}
 function shell(s) {
   const { page, profile, home } = s;
-  const person = profile?.name || "Alex Sharma";
+  const person = profile.name;
   const month = s.month;
-  const isDemo = !profile;
   const status = s.syncError
     ? "Sync needs attention"
     : s.busySync
@@ -83,21 +116,17 @@ function shell(s) {
           : "Saved on this device";
   const finance =
     !!home && ["overview", "transactions", "budgets"].includes(page);
-  const displayPage = home
-      ? page
-      : page === "settings"
-        ? "settings"
-        : "households",
-    m = moneyFormat(home?.currency || "INR"),
+  const displayPage = page,
+    m = moneyFormat(home.currency),
     rows = s.rows.filter((x) => x.date.startsWith(month));
   return `<div class="shell"><button class="screen-cover" aria-label="Close navigation" data-act="menu"></button><aside class="sidebar"><button class="brand" data-page="overview"><img src="./assets/mark.svg" alt="">Spendwell</button>
- <button class="house-select" data-act="households"><span class="house-icon">${icon("home", 17)}</span><span class="house-copy"><span class="house-name">${esc(home?.name || "Choose household")}</span><small>${isDemo ? "Demo workspace" : "Shared workspace"}</small></span>${icon("chevs", 13)}</button>
+ <button class="house-select" data-act="households"><span class="house-icon">${icon("home", 17)}</span><span class="house-copy"><span class="house-name">${esc(home?.name || "Choose household")}</span><small>Shared workspace</small></span>${icon("chevs", 13)}</button>
  <div class="menu-scroll"><p class="nav-label">Workspace</p><nav class="nav" aria-label="Workspace">${["overview", "transactions", "budgets"].map((p) => navLink(p, page)).join("")}</nav><p class="nav-label">Household</p><nav class="nav" aria-label="Household">${["members", "settings"].map((p) => navLink(p, page)).join("")}</nav></div>
- <div class="side-bottom"><div class="drive-box"><div class="drive-heading">${driveMark()}Google Drive</div><p id="drive-status">${isDemo ? "Sign in to create or join a household." : esc(status)}</p><button class="drive-link" data-act="${isDemo || !s.connected || s.syncError ? "connect" : "sync"}">${isDemo ? "Connect account" : !s.connected || s.syncError ? "Reconnect account" : "Sync now"} ${icon("arrow", 13)}</button></div><button class="side-user" data-page="settings">${avatar(person, true)}<span><strong>${esc(person)}</strong><small>${isDemo ? "Demo account" : "Google account"}</small></span>${icon("chevs", 13)}</button></div></aside>
+ <div class="side-bottom"><div class="drive-box"><div class="drive-heading">${driveMark()}Google Drive</div><p id="drive-status">${esc(status)}</p><button class="drive-link" data-act="${!s.connected || s.syncError ? "connect" : "sync"}">${!s.connected || s.syncError ? "Reconnect account" : "Sync now"} ${icon("arrow", 13)}</button></div><button class="side-user" data-page="settings">${avatar(person, true)}<span><strong>${esc(person)}</strong><small>Google account</small></span>${icon("chevs", 13)}</button></div></aside>
  <div class="workspace"><header class="topbar"><button class="icon-button menu-toggle" data-act="menu" aria-label="Open menu">${icon("menu")}</button><span class="mobile-brand"><img src="assets/mark.svg" alt="">Spendwell</span><div class="crumb">${icon("layers", 16)}<span>Workspace</span><span class="slash">/</span><b>${names[page] || "Overview"}</b></div>
- <div class="top-actions">${isDemo ? button("Sign in with Google","connect","","mini google-entry") : ""}<span class="topdate">${icon("cal", 14)}${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span><span class="top-divider"></span><button class="icon-button" data-act="updates" aria-label="Household notifications">${icon("bell", 18)}</button><button class="profile-top" data-page="settings" aria-label="Account settings">${avatar(person)}</button></div></header>
+ <div class="top-actions"><span class="topdate">${icon("cal", 14)}${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span><span class="top-divider"></span><button class="icon-button" data-act="updates" aria-label="Household notifications">${icon("bell", 18)}</button><button class="profile-top" data-page="settings" aria-label="Account settings">${avatar(person)}</button></div></header>
  <main id="main" tabindex="-1" class="main"><div class="heads"><div><h1>${{ overview: "Household overview", transactions: "Transactions", budgets: "Monthly budgets", members: "Household members", settings: "Settings", households: "Your households" }[displayPage]}</h1><p>${{ overview: "Your income, spending, and balance at a glance.", transactions: "All your household activity in one place.", budgets: "Set spending limits for the categories that matter.", members: "Manage the people who share this household.", settings: "Manage your account and Drive connection.", households: "Create a household or open one shared with you." }[displayPage]}</p></div><div class="actions">${finance ? button(month === monthOf(new Date()) ? "This month" : monthName(month, true), "period", "cal", "selector").replace("</button>", icon("down", 12) + "</button>") : ""}${finance && home.role !== "viewer" ? button(page === "budgets" ? "Set budget" : "Add transaction", page === "budgets" ? "budget" : "new", "plus", "btn primary") : ""}${page === "members" && home?.role === "owner" ? button("Invite member", "invite", "plus", "btn primary") : ""}</div></div>
- ${displayPage === "overview" ? overview(s, rows, m) : displayPage === "transactions" ? transactions(s, rows, m) : displayPage === "budgets" ? budgets(s, rows, m) : displayPage === "members" ? members(s) : displayPage === "settings" ? settings(s, status) : `<div class="panel settings-panel buttons-stack">${button("Create household", "create", "plus", "btn primary")}${button("Join household", "join", "people")}</div>`}</main></div>
+ ${displayPage === "overview" ? overview(s, rows, m) : displayPage === "transactions" ? transactions(s, rows, m) : displayPage === "budgets" ? budgets(s, rows, m) : displayPage === "members" ? members(s) : settings(s, status)}</main></div>
  <nav class="mobile-nav" aria-label="Mobile navigation">${navLink("overview", page)}${navLink("transactions", page)}<button data-act="new"><span class="mobile-add">${icon("plus", 19)}</span>Add</button>${navLink("budgets", page)}<button data-act="menu">${icon("menu")}More</button></nav></div>`;
 }
 function driveMark() {
@@ -212,8 +241,8 @@ function members(s) {
   return `<section class="panel settings-panel"><h2>${esc(s.home.name)}</h2>${s.peopleError ? `<p class="info">${esc(s.peopleError)}</p>` : ""}${s.people.map((p) => `<div class="person-row"><div>${avatar(p.name, true)}<span><strong>${esc(p.name)}</strong><small>${esc(p.email)}</small></span></div><span class="role">${esc(p.role)}</span></div>`).join("")}${s.profile ? button("Refresh members", "refreshMembers", "sync", "mini") : ""}</section>`;
 }
 function settings(s, status) {
-  return `<section class="panel settings-panel"><h2>Account & storage</h2><div class="setting-row"><div><strong>${esc(s.profile?.email || "Demo workspace")}</strong><p>${s.profile ? "Connected household data is cached on this device." : "Explore with sample data. Connect Google for your own household."}</p></div>${button(s.profile ? "Sign out" : "Connect Google", s.profile ? "signout" : "connect")}</div><div class="setting-row"><div><strong>Google Drive</strong><p>${s.profile ? esc(s.syncError || status) : "Each shared ledger lives in its creator’s Google Drive."}</p></div>${s.profile ? button(s.connected && !s.syncError ? "Sync now" : "Reconnect", s.connected && !s.syncError ? "sync" : "connect", "sync") : ""}</div></section>
- <section class="panel settings-panel"><h2>Households</h2><div class="setting-row"><div><strong>${esc(s.home?.name || "No household selected")}</strong><p>${s.home ? esc(s.home.currency) + " · " + (s.profile ? "Drive ledger" : "Sample ledger on this device") : "Open or create a shared ledger."}</p></div>${button("Manage", "households", "home")}</div></section>`;
+  return `<section class="panel settings-panel"><h2>Account & storage</h2><div class="setting-row"><div><strong>${esc(s.profile.email)}</strong><p>Connected household data is cached on this device.</p></div>${button("Sign out", "signout")}</div><div class="setting-row"><div><strong>Google Drive</strong><p>${esc(s.syncError || status)}</p></div>${s.profile ? button(s.connected && !s.syncError ? "Sync now" : "Reconnect", s.connected && !s.syncError ? "sync" : "connect", "sync") : ""}</div></section>
+ <section class="panel settings-panel"><h2>Households</h2><div class="setting-row"><div><strong>${esc(s.home?.name || "No household selected")}</strong><p>${s.home ? esc(s.home.currency) + " · " + "Drive ledger" : "Open or create a shared ledger."}</p></div>${button("Manage", "households", "home")}</div></section>`;
 }
 
 export {

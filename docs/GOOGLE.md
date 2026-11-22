@@ -11,6 +11,14 @@ Each household has one ledger in the creator's Google Drive. Family members use 
 5. In `dist/config.js`, set `GOOGLE_CLIENT_ID` to the web client ID, `GOOGLE_API_KEY` to the restricted Picker key and `GOOGLE_APP_ID` to the project number as a string. Publish the updated files. These three values are public browser configuration. Keep OAuth client secrets and access tokens out of the repository.
 6. Open Spendwell and connect your Google account. The app gets your stable account ID from Google and keeps its short-lived authorization token in memory. Reconnect after a reload or token expiry to resume cloud sync. [Google Identity token flow](https://developers.google.com/identity/oauth2/web/guides/use-token-model)
 
+## Open sign-in to the public
+
+In the project that owns the deployed OAuth client, open **Google Auth Platform → Audience**. Set the user type to **External**, choose **Publish app**, then confirm that the status reads **In production**. This setting is independent of GitHub Pages and removes the Testing allowlist. [Google Auth Platform Audience](https://support.google.com/cloud/answer/15549945)
+
+Set the app home page to the deployed Spendwell URL and the privacy policy URL to `privacy.html` under that same site. Check **Verification Center** for any branding or domain verification Google requires. Spendwell requests Google identity scopes and the non-sensitive, per-file `drive.file` scope. [Google OAuth branding](https://support.google.com/cloud/answer/15549049) · [Drive API scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
+
+Verify using a Google account that was never on the test-user list. It should reach **Set up your household** after Google consent and be able to create a ledger or open a file it was invited to.
+
 ## Use the household on multiple devices
 
 - The owner creates a household in Spendwell. The app creates **Spendwell · HOUSEHOLD NAME** in that account's Drive. A user can belong to several households, each with its own ledger.

@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  demoData,
-  totals,
-  series,
-  shiftMonth,
-  monthDays,
-} from "../dist/finance.js";
+import { totals, series, shiftMonth, monthDays } from "../dist/finance.js";
 import { toMinor, fromMinor, exportCSV } from "../dist/money.js";
 import { breakdown, trendChart } from "../dist/charts.js";
 import { moneyFormat } from "../dist/views.js";
@@ -38,9 +32,12 @@ test("month selection handles year boundaries, leap days and an empty ledger", (
 });
 
 test("daily and weekly trends reconcile to the same expenses", () => {
-  const rows = demoData(new Date(2026, 0, 19))
-    .filter((e) => e.kind === "tx")
-    .map((e) => e.value);
+  const rows = [
+    { date: "2026-01-01", type: "income", amount: 5000 },
+    { date: "2026-01-03", type: "expense", amount: 850 },
+    { date: "2026-01-19", type: "expense", amount: 120 },
+    { date: "2025-12-03", type: "expense", amount: 250 },
+  ];
   const expected = totals(
     rows.filter((e) => e.date.startsWith("2026-01")),
   ).spent;

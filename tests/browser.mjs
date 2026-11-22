@@ -24,7 +24,12 @@ const server = createServer(async (req, res) => {
     );
     if (!["dist", "tests"].some((p) => file.startsWith(join(base, p) + sep)))
       throw Error();
-    const data = await readFile(file);
+    const data =
+      path === "/dist/config.js"
+        ? ["GOOGLE_CLIENT_ID", "GOOGLE_API_KEY", "GOOGLE_APP_ID"]
+            .map((name) => "export const " + name + '="test";')
+            .join("\n")
+        : await readFile(file);
     res.writeHead(200, {
       "Content-Type": mime[extname(file)] || "application/octet-stream",
     });
@@ -158,8 +163,47 @@ try {
   ).sessionId;
   await cmd("Runtime.enable");
   await cmd("Page.enable");
-  await cmd("Page.navigate", { url: url + "/dist/" });
-  await until('!!document.querySelector(".statvalue")');
+  const googleMock = (
+    await readFile(new URL("./mock-google.js", import.meta.url), "utf8")
+  ).replace("export function", "function");
+  await cmd("Page.addScriptToEvaluateOnNewDocument", {
+    source:
+      googleMock +
+      '\nif (location.pathname.startsWith("/dist/")) window.googleMock = mockGoogle();',
+  });
+  await cmd("Page.navigate", { url: url + "/dist/#transactions" });
+  await until('document.querySelector(".google-login") !== null');
+  assert.equal(
+    await js('!!document.querySelector(".statvalue,.tx-row")'),
+    false,
+  );
+  await screen(1440, 1000, "welcome-desktop");
+  await screen(390, 844, "welcome-mobile");
+  await click(".google-login");
+  await until(
+    'document.querySelector("h1").textContent === "Set up your household"',
+  );
+  assert.equal(
+    await js('!!document.querySelector(".statvalue,.tx-row")'),
+    false,
+  );
+  await click('.entry [data-act="create"]');
+  await until('document.querySelector("dialog").open');
+  assert.ok(
+    await js(
+      'document.querySelector("dialog").innerText.includes("alice@example.com")',
+    ),
+  );
+  await fill('[name="name"]', "Our household");
+  await click("dialog [type=submit]");
+  await until(
+    'document.querySelector(".statvalue") && !document.querySelector("dialog").open',
+  );
+  assert.equal(
+    await js('document.querySelector(".statvalue").textContent'),
+    "₹0",
+  );
+  assert.equal(await js('document.querySelectorAll(".tx-row").length'), 0);
   await screen(1440, 1000, "desktop");
   await screen(390, 844, "mobile");
   await click('.mobile-nav [data-act="new"]');
@@ -230,10 +274,13 @@ try {
   await click("[data-act=period]");
   await click(".picker-list button:nth-child(2)");
   await until('!document.querySelector("dialog").open');
-  await click("[data-act=households]");
-  await click("[data-act=create]");
-  await until(
-    'document.querySelector("dialog").innerText.includes("Choose a Google account")',
+  await click(".profile-top");
+  await click('[data-act="signout"]');
+  await click("dialog [type=submit]");
+  await until('!!document.querySelector(".google-login")');
+  assert.equal(
+    await js('!!document.querySelector(".statvalue,.tx-row")'),
+    false,
   );
   await cmd("Page.navigate", { url: url + "/tests/cloud.browser.html" });
   await until(

@@ -1,6 +1,6 @@
 # Spendwell
 
-A phone-first household finance tracker that runs on GitHub Pages. Record an expense or income, see monthly totals, and tap a category to inspect the transactions behind its spending. The demo opens immediately and stores its sample ledger on the current device.
+A phone-first household finance tracker that runs on GitHub Pages. Record an expense or income, see monthly totals, and tap a category to inspect the transactions behind its spending. Sign in with Google, then create a household or join one shared with you.
 
 ## Run locally
 
@@ -16,8 +16,9 @@ The app uses plain JavaScript modules, a self-hosted font, and SVG charts. It ha
 
 1. Put the project in a GitHub repository with a `main` branch. Include `.github/workflows/pages.yml` and `dist/`.
 2. In **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**.
-3. Complete the Google setup below and add the three public settings in **Settings → Secrets and variables → Actions → Variables**. The demo also works with empty settings.
-4. Push to `main` or run **Deploy Spendwell to GitHub Pages** in the Actions tab. The workflow tests the finance calculations, applies your Google configuration, and deploys only `dist/`. Open the deployment URL reported by GitHub.
+3. Complete the Google setup below and add the three public settings in **Settings → Secrets and variables → Actions → Variables**.
+4. In Google Auth Platform, set the app audience to **External** and publish the OAuth app to remove the test-user allowlist. See the Google setup guide below.
+5. Push to `main` or run **Deploy Spendwell to GitHub Pages** in the Actions tab. The workflow tests the finance calculations, applies your Google configuration, and deploys only `dist/`. Open the deployment URL reported by GitHub.
 
 Relative asset paths and hash navigation support deployment under a repository path. [GitHub Pages documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 

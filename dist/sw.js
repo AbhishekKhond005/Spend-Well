@@ -21,6 +21,7 @@ const paths = [
   "assets/icon-192.png",
   "assets/icon-512.png",
   "google-setup.html",
+  "privacy.html",
 ];
 const known = new Set(paths.map((path) => new URL(path, scope).href));
 self.addEventListener("install", (event) => {
