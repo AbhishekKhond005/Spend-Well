@@ -50,7 +50,7 @@ export function breakdown(stats, money, memberRows = null) {
         `<button class="legend-row" ${target}><i style="--c:${color}"></i><span>${esc(name)}</span><b>${money(amount)}</b><small>${Math.round((100 * amount) / stats.spent)}%</small></button>`,
     )
     .join("");
-  return `<div class="breakdown-chart"><div class="donut"><svg viewBox="0 0 200 200" aria-label="Spending by ${memberRows ? "member" : "category"}"><circle cx="100" cy="100" r="76" fill="none" stroke="#efedf3" stroke-width="30"/>${arcs}</svg><div class="donut-label"><small>Total spent</small><strong>${money(stats.spent)}</strong></div></div><div class="legend">${legend || "<small>Add an expense to see your breakdown.</small>"}</div></div>`;
+  return `<div class="breakdown-chart"><div class="donut"><svg viewBox="0 0 200 200" aria-label="Spending by ${memberRows ? "member" : "category"}"><circle cx="100" cy="100" r="76" fill="none" stroke="var(--chart-track)" stroke-width="30"/>${arcs}</svg><div class="donut-label"><small>Total spent</small><strong>${money(stats.spent)}</strong></div></div><div class="legend">${legend || "<small>Add an expense to see your breakdown.</small>"}</div></div>`;
 }
 function smooth(points) {
   if (!points.length) return "";
@@ -106,7 +106,7 @@ export function trendChart(rows, month, mode, money) {
         (y0 + h - (h * i) / 3) +
         '" y2="' +
         (y0 + h - (h * i) / 3) +
-        '" stroke="#e9e9ef" stroke-dasharray="3 4"/>',
+        '" stroke="var(--chart-grid)" stroke-dasharray="3 4"/>',
     )
     .join("");
   const ticks = Array.from(
@@ -133,9 +133,9 @@ export function trendChart(rows, month, mode, money) {
     (h + y0) +
     ' Z" fill="url(#lavender-fill)"/><path d="' +
     smooth(past) +
-    '" fill="none" stroke="#b8b6c7" stroke-width="2" stroke-dasharray="4 5" vector-effect="non-scaling-stroke"/><path d="' +
+    '" fill="none" stroke="var(--chart-previous)" stroke-width="2" stroke-dasharray="4 5" vector-effect="non-scaling-stroke"/><path d="' +
     smooth(cur) +
-    '" fill="none" stroke="#9466d7" stroke-width="2.7" vector-effect="non-scaling-stroke"/>' +
+    '" fill="none" stroke="var(--chart-accent)" stroke-width="2.7" vector-effect="non-scaling-stroke"/>' +
     cur
       .map(
         ([x, y], i) =>

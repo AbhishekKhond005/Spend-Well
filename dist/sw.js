@@ -6,6 +6,7 @@ const version = family + build;
 const paths = [
   "index.html",
   "style.css",
+  "theme.js",
   "app.js",
   "views.js",
   "ui.js",

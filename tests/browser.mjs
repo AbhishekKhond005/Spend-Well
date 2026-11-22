@@ -129,6 +129,18 @@ const fill = (selector, value) =>
   js(
     `document.querySelector(${JSON.stringify(selector)}).value=${JSON.stringify(value)}`,
   );
+const theme = () => js("document.documentElement.dataset.theme");
+const chooseTheme = (value) =>
+  js(`(() => {
+    const select = document.querySelector("[data-theme-choice]");
+    select.value = ${JSON.stringify(value)};
+    select.dispatchEvent(new Event("change", {bubbles: true}));
+  })()`);
+const deviceTheme = (value) =>
+  cmd("Emulation.setEmulatedMedia", {
+    features: [{ name: "prefers-color-scheme", value }],
+  });
+
 async function screen(width, height, label) {
   await cmd("Emulation.setDeviceMetricsOverride", {
     width,
@@ -163,6 +175,7 @@ try {
   ).sessionId;
   await cmd("Runtime.enable");
   await cmd("Page.enable");
+  await deviceTheme("dark");
   const googleMock = (
     await readFile(new URL("./mock-google.js", import.meta.url), "utf8")
   ).replace("export function", "function");
@@ -179,6 +192,16 @@ try {
   );
   await screen(1440, 1000, "welcome-desktop");
   await screen(390, 844, "welcome-mobile");
+  assert.equal(await theme(), "dark");
+  await chooseTheme("light");
+  assert.equal(await theme(), "light");
+  await chooseTheme("system");
+  assert.equal(await theme(), "dark");
+  await deviceTheme("light");
+  await until('document.documentElement.dataset.theme === "light"');
+  await chooseTheme("dark");
+  await screen(320, 720, "welcome-dark-narrow");
+  await screen(390, 844, "welcome-dark-mobile");
   await click(".google-login");
   await until(
     'document.querySelector("h1").textContent === "Set up your household"',
@@ -204,9 +227,25 @@ try {
     "₹0",
   );
   assert.equal(await js('document.querySelectorAll(".tx-row").length'), 0);
-  await screen(1440, 1000, "desktop");
+  assert.equal(await theme(), "dark");
+  assert.equal(
+    await js(
+      "getComputedStyle(document.querySelector('.stat:not(.featured)')).backgroundColor",
+    ),
+    "rgb(34, 29, 46)",
+  );
+  await screen(1440, 1000, "desktop-dark");
   await screen(390, 844, "mobile");
+  await screen(320, 720, "dashboard-dark-narrow");
+  await screen(390, 844, "dashboard-dark-mobile");
   await click('.mobile-nav [data-act="new"]');
+  assert.equal(
+    await js(
+      "getComputedStyle(document.querySelector('dialog')).backgroundColor",
+    ),
+    "rgb(34, 29, 46)",
+  );
+  await screen(390, 844, "entry-dialog-dark");
   await fill('[name="amount"]', "125.50");
   await fill('[name="title"]', "Browser test coffee");
   await fill('[name="category"]', "dining");
@@ -229,6 +268,7 @@ try {
     uploadThroughput: 0,
   });
   await cmd("Page.reload");
+  await until('document.documentElement.dataset.theme === "dark"');
   await until('document.body.innerText.includes("Browser test coffee")');
   await cmd("Network.emulateNetworkConditions", {
     offline: false,
@@ -282,6 +322,9 @@ try {
     await js('!!document.querySelector(".statvalue,.tx-row")'),
     false,
   );
+  await cmd("Page.navigate", { url: url + "/dist/privacy.html" });
+  await until('document.querySelector("h1")?.textContent === "Privacy policy"');
+  assert.equal(await theme(), "dark");
   await cmd("Page.navigate", { url: url + "/tests/cloud.browser.html" });
   await until(
     'document.querySelector("#status")?.textContent.match(/pass|fail/i)',

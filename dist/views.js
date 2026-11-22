@@ -67,10 +67,16 @@ function monthName(month, short = false) {
 function navLink(page, current) {
   return `<button data-page="${page}" class="${current === page ? "active" : ""}" ${current === page ? 'aria-current="page"' : ""}>${icon(navIcons[page])}<span>${names[page]}</span></button>`;
 }
+function themeControl() {
+  const choice = document.documentElement.dataset.themePreference || "system";
+  const labels = { system: "System", light: "Light", dark: "Dark" };
+  return `<label class="trend-select theme-control">${icon("theme", 16)}<select data-theme-choice aria-label="Color theme">${options(Object.keys(labels), choice, (id) => labels[id])}</select>${icon("down", 12)}</label>`;
+}
+
 export function welcome() {
   return `<main id="main" class="entry">
     <section class="entry-copy">
-      <div class="entry-brand"><img src="./assets/mark.svg" alt="" width="38" height="38">Spendwell</div>
+      <div class="entry-header"><div class="entry-brand"><img src="./assets/mark.svg" alt="" width="38" height="38">Spendwell</div>${themeControl()}</div>
       <h1>Household finances, together.</h1>
       <p>Track spending, set monthly budgets, and share a household ledger with the people you live with.</p>
       <button type="button" class="btn google-login" data-act="connect">${googleMark}Sign in with Google</button>
@@ -87,7 +93,7 @@ const googleMark =
 export function householdSetup(s) {
   return `<main id="main" class="entry">
     <section class="entry-copy">
-      <div class="entry-brand"><img src="./assets/mark.svg" alt="" width="38" height="38">Spendwell</div>
+      <div class="entry-header"><div class="entry-brand"><img src="./assets/mark.svg" alt="" width="38" height="38">Spendwell</div>${themeControl()}</div>
       <h1>Set up your household</h1>
       <p>Start a ledger in your Google Drive or open a household that’s already shared with you.</p>
       <div class="entry-options">
@@ -124,7 +130,7 @@ function shell(s) {
  <div class="menu-scroll"><p class="nav-label">Workspace</p><nav class="nav" aria-label="Workspace">${["overview", "transactions", "budgets"].map((p) => navLink(p, page)).join("")}</nav><p class="nav-label">Household</p><nav class="nav" aria-label="Household">${["members", "settings"].map((p) => navLink(p, page)).join("")}</nav></div>
  <div class="side-bottom"><div class="drive-box"><div class="drive-heading">${driveMark()}Google Drive</div><p id="drive-status">${esc(status)}</p><button class="drive-link" data-act="${!s.connected || s.syncError ? "connect" : "sync"}">${!s.connected || s.syncError ? "Reconnect account" : "Sync now"} ${icon("arrow", 13)}</button></div><button class="side-user" data-page="settings">${avatar(person, true)}<span><strong>${esc(person)}</strong><small>Google account</small></span>${icon("chevs", 13)}</button></div></aside>
  <div class="workspace"><header class="topbar"><button class="icon-button menu-toggle" data-act="menu" aria-label="Open menu">${icon("menu")}</button><span class="mobile-brand"><img src="assets/mark.svg" alt="">Spendwell</span><div class="crumb">${icon("layers", 16)}<span>Workspace</span><span class="slash">/</span><b>${names[page] || "Overview"}</b></div>
- <div class="top-actions"><span class="topdate">${icon("cal", 14)}${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span><span class="top-divider"></span><button class="icon-button" data-act="updates" aria-label="Household notifications">${icon("bell", 18)}</button><button class="profile-top" data-page="settings" aria-label="Account settings">${avatar(person)}</button></div></header>
+ <div class="top-actions"><span class="topdate">${icon("cal", 14)}${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span><span class="top-divider"></span>${themeControl()}<button class="icon-button" data-act="updates" aria-label="Household notifications">${icon("bell", 18)}</button><button class="profile-top" data-page="settings" aria-label="Account settings">${avatar(person)}</button></div></header>
  <main id="main" tabindex="-1" class="main"><div class="heads"><div><h1>${{ overview: "Household overview", transactions: "Transactions", budgets: "Monthly budgets", members: "Household members", settings: "Settings", households: "Your households" }[displayPage]}</h1><p>${{ overview: "Your income, spending, and balance at a glance.", transactions: "All your household activity in one place.", budgets: "Set spending limits for the categories that matter.", members: "Manage the people who share this household.", settings: "Manage your account and Drive connection.", households: "Create a household or open one shared with you." }[displayPage]}</p></div><div class="actions">${finance ? button(month === monthOf(new Date()) ? "This month" : monthName(month, true), "period", "cal", "selector").replace("</button>", icon("down", 12) + "</button>") : ""}${finance && home.role !== "viewer" ? button(page === "budgets" ? "Set budget" : "Add transaction", page === "budgets" ? "budget" : "new", "plus", "btn primary") : ""}${page === "members" && home?.role === "owner" ? button("Invite member", "invite", "plus", "btn primary") : ""}</div></div>
  ${displayPage === "overview" ? overview(s, rows, m) : displayPage === "transactions" ? transactions(s, rows, m) : displayPage === "budgets" ? budgets(s, rows, m) : displayPage === "members" ? members(s) : settings(s, status)}</main></div>
  <nav class="mobile-nav" aria-label="Mobile navigation">${navLink("overview", page)}${navLink("transactions", page)}<button data-act="new"><span class="mobile-add">${icon("plus", 19)}</span>Add</button>${navLink("budgets", page)}<button data-act="menu">${icon("menu")}More</button></nav></div>`;
@@ -179,7 +185,7 @@ function table(rows, m) {
           day: "numeric",
           month: "short",
         });
-      return `<tr class="tx-row" data-tx="${esc(t.id)}"><td><button class="merchant" data-tx="${esc(t.id)}"><span class="tx-icon" style="background:${c.bg};color:${ink(t.category)}">${icon(c.icon, 17)}</span><span>${esc(t.title)}<small>${esc(c.name)} · ${esc(date)}</small></span></button></td><td class="category-col"><span class="category" style="--bg:${c.bg};--c:${c.color}">${esc(c.name)}</span></td><td class="member-col"><span class="membercell">${avatar(member)}${esc(member.split(" ")[0])}</span></td><td class="date-col nowrap">${esc(date)}</td><td class="amount ${t.type === "income" ? "positive" : ""}">${t.type === "income" ? "+" : "−"}${m(t.amount)}</td></tr>`;
+      return `<tr class="tx-row" data-tx="${esc(t.id)}"><td><button class="merchant" data-tx="${esc(t.id)}"><span class="tx-icon" style="--category-bg:${c.bg};--category-ink:${ink(t.category)};--c:${c.color}">${icon(c.icon, 17)}</span><span>${esc(t.title)}<small>${esc(c.name)} · ${esc(date)}</small></span></button></td><td class="category-col"><span class="category" style="--bg:${c.bg};--c:${c.color}">${esc(c.name)}</span></td><td class="member-col"><span class="membercell">${avatar(member)}${esc(member.split(" ")[0])}</span></td><td class="date-col nowrap">${esc(date)}</td><td class="amount ${t.type === "income" ? "positive" : ""}">${t.type === "income" ? "+" : "−"}${m(t.amount)}</td></tr>`;
     })
     .join("")}</tbody></table></div>`;
 }
@@ -233,7 +239,7 @@ function budgets(s, rows, m) {
         b =
           s.budgets.find((x) => x.month === s.month && x.category === id)
             ?.amount || 0;
-      return `<article class="budgetcard"><div class="budget-title"><span class="tx-icon" style="background:${cat.bg};color:${ink(id)}">${icon(cat.icon, 17)}</span><h3>${cat.name}</h3>${s.home.role !== "viewer" ? `<button class="icon-button" aria-label="Edit ${cat.name} budget" data-budget="${id}">${icon("edit", 15)}</button>` : ""}</div><div class="budget-row"><strong>${m(spent)}</strong><span>${b ? "of " + m(b) : "spent"}</span></div><div class="bar"><i style="--c:${cat.color};width:${b ? Math.min(100, (100 * spent) / b) : 0}%"></i></div><small>${!b ? "No budget set" : spent > b ? m(spent - b) + " over budget" : m(b - spent) + " remaining"}</small></article>`;
+      return `<article class="budgetcard"><div class="budget-title"><span class="tx-icon" style="--category-bg:${cat.bg};--category-ink:${ink(id)};--c:${cat.color}">${icon(cat.icon, 17)}</span><h3>${cat.name}</h3>${s.home.role !== "viewer" ? `<button class="icon-button" aria-label="Edit ${cat.name} budget" data-budget="${id}">${icon("edit", 15)}</button>` : ""}</div><div class="budget-row"><strong>${m(spent)}</strong><span>${b ? "of " + m(b) : "spent"}</span></div><div class="bar"><i style="--c:${cat.color};width:${b ? Math.min(100, (100 * spent) / b) : 0}%"></i></div><small>${!b ? "No budget set" : spent > b ? m(spent - b) + " over budget" : m(b - spent) + " remaining"}</small></article>`;
     })
     .join("")}</div>`;
 }
